@@ -9,8 +9,8 @@ services:
     volumes:
       - ./logs:/var/log/manticore
       - ./data:/var/lib/manticore/data
-      - ./etc/manticore.conf:/etc/manticoresearch/manticore.conf
-      - ./etc/manticore.conf:/etc/sphinxsearch/sphinx.conf
+      - ./etc/sphinx.conf:/etc/manticoresearch/manticore.conf
+      - ./etc/sphinx.conf:/etc/sphinxsearch/sphinx.conf
     ports:
       - 127.0.0.1:9306:9306 # mysql
       - 127.0.0.1:9308:9308 # http
