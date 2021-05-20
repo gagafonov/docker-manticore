@@ -7,7 +7,7 @@
 3. возможно, берем настройки `searchd` из `etc/sphinx.conf.example` и настраиваем внешние порты в `.env`
 4. `sudo docker-compose up -d`
 5. `sudo docker-compose exec manticore hostname -i` - копируем ip-контейнера
-6. вносим правка etc/manticore.conf: заменяем `listen = 0.0.0.0:9312` на `listen = ip-контейнера:9312`
+6. вносим правка etc/sphinx.conf: заменяем `listen = 0.0.0.0:9312` на `listen = ip-контейнера:9312`
 7. `sudo docker-compose restart manticore`
 8. `sudo docker-compose exec manticore gosu manticore indexer --all --rotate`
 9. `sudo docker-compose restart manticore`
