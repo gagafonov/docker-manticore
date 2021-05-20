@@ -1,0 +1,31 @@
+version: "3.8"
+services:
+  manticore:
+    environment:
+      TZ: ${APP_TIMEZONE}
+    image: manticoresearch/manticore:${MANTICORE_VERSION}
+    tty: true
+    restart: always
+    volumes:
+      - ./logs:/var/log/manticore
+      - ./data:/var/lib/manticore/data
+      - ./etc/manticore.conf:/etc/manticoresearch/manticore.conf
+      - ./etc/manticore.conf:/etc/sphinxsearch/sphinx.conf
+    ports:
+      - 127.0.0.1:9306:9306 # mysql
+      - 127.0.0.1:9308:9308 # http
+      - 127.0.0.1:9312:9312 # binary
+      - 127.0.0.1:9315-9325:9315-9325 # replication
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
+      memlock:
+        soft: -1
+        hard: -1
+    networks:
+      - app-network
+networks:
+  app-network:
+    driver: bridge

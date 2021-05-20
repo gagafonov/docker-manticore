@@ -1,0 +1,446 @@
+# Главный "источник". Содержит в себе конфигурация соединения с БД
+source configurationSource
+{
+    # Тип подключения - mysql
+    type        = mysql
+    # Хост БД
+    sql_host    = 95.216.28.230
+    # Пользователь БД
+    sql_user    = gagafonov_remote
+    # Пароль
+    sql_pass    = 5}0{rizyV~h4N7b6V2s7vsOzJ
+    # БД
+    sql_db      = happyday_preprod
+    # Порт
+    sql_port    = 3306
+    # Флаги MySQL. 32 - включает сжатие данных
+    mysql_connect_flags = 32
+
+    # Запросы, выполняемые после установки соединения с БД
+    sql_query_pre = SET NAMES utf8
+
+    # Устарело в версии MySQL 8.0
+    # sql_query_pre = SET SESSION query_cache_type=OFF
+}
+
+# Настройки индексатора
+indexer {
+    # Лимит оперативной памяти - 128М
+    mem_limit = 256M
+}
+
+# Источник для поиска
+source searchSource : configurationSource
+{
+    # Основной запрос: выбираем продукты с параметрами
+    # - id товара                           : id, string, full-text
+    # - id товара                           : product_id, string, full-text
+    # - внутренее имя товара                : product_name, string, full-text
+    # - название товара                     : product_title, string, full-text
+    # - id подкатегории                     : product_subcategory_id, uint|null
+    # - заголовок подкатегории              : product_subcategory_title, string
+    # - название подкатегории               : product_subcategory_name, string
+    # - статус подкатегории                 : product_subcategory_status, boolean
+    # - id категории                        : product_category_id, uint|null
+    # - цена товара (основная)              : product_price, float|null
+    # - есть ли цена фактически             : product_has_price, boolean
+    # - id типа цены                        : product_price_type_id, string|null
+    # - заголовок типа цены                 : product_price_type_title, string
+    # - название типа цены                  : product_price_type_name, string
+    # - статус товара                       : product_status, boolean
+    # - статус публикации товара            : product_published, boolean
+    # - дата первой публикации услуги       : product_published_at, timestamp
+    # - id профиля                          : profile_id, uint|null
+    # - рейтинг товара                      : product_marks, float|null
+    # - есть ли фактическая оценка профиля  : profile_has_mark, boolean
+    # - дополнительные параметры товара     : product_params, json|null
+    # - дополнительные параметры товара,    : product_params_numeric, json|null
+    #   приведенные к числовым значениям
+    # - координаты товара                   : product_coordinates, json|null
+    # - количество отзывов о товаре         : product_reviews_count, int
+    # - идентификатор города по ФИАС-у      : product_city_fias_id, string
+
+    sql_query = \
+        SELECT \
+            products.id, \
+            products.id as product_id, \
+            products.name as product_name, \
+            products.title as product_title, \
+            products.published_at as product_published_at, \
+            products.category_id as product_subcategory_id, \
+            categories.title as product_subcategory_title, \
+            categories.name as product_subcategory_name, \
+            categories.status as product_subcategory_status, \
+            ( \
+                CASE \
+                    WHEN \
+                        categories.parent_id = 0 \
+                    THEN \
+                        products.category_id \
+                    ELSE \
+                        categories.parent_id \
+                    END \
+            ) as product_category_id, \
+            products_prices.value as product_price, \
+            (products_prices.value IS NOT NULL) as product_has_price, \
+            category_prices_types.price_type_id as product_price_type_id, \
+            prices_types.name as product_price_type_name, \
+            prices_types.title as product_price_type_title, \
+            products.status as product_status, \
+            products.published as product_published, \
+            products.profile_id as profile_id, \
+            products.order_time as order_time, \
+            products.marks as product_marks, \
+            profiles.marks as profile_marks, \
+            profiles.marks->>"$.general" as profile_mark, \
+            (profiles.marks->>"$.general" IS NOT NULL) as profile_has_mark, \
+            ( \
+                SELECT \
+                    JSON_OBJECTAGG(T1.option_id, \
+                        ( \
+                            SELECT \
+                                JSON_ARRAYAGG(T2.value) \
+                            FROM \
+                                products_params as T2 \
+                            WHERE \
+                                T2.product_id = T1.product_id AND T2.option_id = T1.option_id \
+                        ) \
+                    ) \
+                FROM \
+                    products_params as T1 \
+                WHERE \
+                    T1.product_id = products.id \
+            ) as product_params, \
+            ( \
+                SELECT \
+                    JSON_OBJECTAGG(T1.option_id, \
+                        ( \
+                            SELECT \
+                                JSON_ARRAYAGG(T2.number_value) \
+                            FROM \
+                                products_params as T2 \
+                            WHERE \
+                                T2.product_id = T1.product_id AND T2.option_id = T1.option_id \
+                        ) \
+                    ) \
+                FROM \
+                    products_params as T1 \
+                WHERE \
+                    T1.product_id = products.id \
+            ) as product_params_numeric, \
+            products.coords as product_coordinates, \
+            reviews_alias.reviews_count as product_reviews_count, \
+            reviews_alias.reviews_count_publushed as product_reviews_count_published, \
+            cities.fias_id as product_city_fias_id \
+        FROM \
+            products \
+        INNER JOIN \
+            profiles \
+        ON \
+            profiles.id = products.profile_id \
+        INNER JOIN \
+            categories \
+        ON \
+            categories.id = products.category_id \
+        INNER JOIN \
+            category_prices_types \
+        ON \
+            category_prices_types.category_id = \
+            ( \
+                CASE \
+                    WHEN \
+                        categories.parent_id = 0 \
+                    THEN \
+                        products.category_id \
+                    ELSE \
+                        categories.parent_id \
+                    END \
+            ) AND category_prices_types.status = 1 AND category_prices_types.visible = 1 AND category_prices_types.is_main = 1 \
+        LEFT JOIN \
+            prices_types \
+        ON \
+            prices_types.id = category_prices_types.price_type_id \
+        LEFT JOIN \
+            products_prices \
+        ON \
+            products_prices.product_id = products.id AND products_prices.price_type_id = category_prices_types.price_type_id \
+            AND products_prices.id = \
+            ( \
+                SELECT \
+                    MAX(products_prices.id) \
+                FROM \
+                    products_prices \
+                WHERE products_prices.product_id = products.id AND products_prices.price_type_id = category_prices_types.price_type_id \
+            ) \
+        LEFT JOIN \
+            ( \
+                SELECT \
+                    orders.product_id, \
+                    COUNT(reviews.id) as reviews_count, \
+                    COUNT(case when published=1 then 1 else null end) as reviews_count_publushed \
+                FROM \
+                    orders \
+                LEFT JOIN \
+                    reviews \
+                ON \
+                    reviews.order_id = orders.id \
+                GROUP BY \
+                    orders.product_id \
+            ) as reviews_alias \
+        ON \
+            products.id = reviews_alias.product_id \
+        LEFT JOIN \
+            cities \
+        ON \
+            cities.id = products.city_id \
+        WHERE products.deleted_at is null \
+
+
+    # Уточняем тип: "строка" + полнотекстовый поиск
+    sql_field_string = product_id
+    sql_field_string = product_title
+    sql_field_string = product_subcategory_title
+    sql_field_string = product_price_type_title
+
+    # Уточняем тип: "строка"
+    sql_attr_string = product_name
+    sql_attr_string = product_price_type_name
+    sql_attr_string = product_subcategory_name
+    sql_attr_string = product_city_fias_id
+    sql_field_string = product_published_at
+
+    # Уточняем тип: "json"
+    sql_attr_json = product_params
+    sql_attr_json = product_params_numeric
+    sql_attr_json = product_coordinates
+    sql_attr_json = product_marks
+    sql_attr_json = profile_marks
+
+    # Уточняем тип: "целое беззнаковое"
+    sql_attr_uint = product_subcategory_id
+    sql_attr_uint = product_category_id
+    sql_attr_uint = profile_id
+    sql_attr_uint = order_time
+    sql_attr_uint = product_price_type_id
+    sql_attr_uint = product_reviews_count
+    sql_attr_uint = product_reviews_count_published
+
+    # Уточняем тип: "вещественное"
+    sql_attr_float = product_price
+    sql_attr_float = profile_mark
+
+    # Уточняем тип: "булевское"
+    sql_attr_bool = profile_has_mark
+    sql_attr_bool = product_has_price
+    sql_attr_bool = product_status
+    sql_attr_bool = product_published
+    sql_attr_bool = product_subcategory_status
+
+    # Уточняем тип: "Дата"
+
+    # Уточняем тип: "Составная колонка"
+    sql_attr_multi = bigint disable_dates from query; \
+    select product_id,UNIX_TIMESTAMP(DATE(DATE_SUB(date_execute, INTERVAL 480 MINUTE))) as date \
+    from orders \
+        join schedule s on orders.product_id = s.item_id and s.type = 'product' and \
+            s.day = DAYOFWEEK(DATE_SUB(date_execute, INTERVAL 480 MINUTE)) - 1 \
+        join products p on orders.product_id = p.id \
+    where orders.deleted_at is null and DATE(date_execute)>=DATE(NOW()) \
+    group by UNIX_TIMESTAMP(DATE(DATE_SUB(date_execute, INTERVAL 480 MINUTE))), orders.product_id \
+    having case \
+            when min(s.all_time) then 24 \
+            when min(s.day_off) then 0 \
+            else HOUR(min(s.to)) - if(MINUTE(min(s.from)) > 0, HOUR(min(s.from)) + 1, HOUR(min(s.from))) \
+        end - sum((UNIX_TIMESTAMP(finished_at) - UNIX_TIMESTAMP(date_execute)) / 60 / 60 + orders.break / 60) <= min(p.order_time) / 60 \
+    UNION \
+    select product_id,UNIX_TIMESTAMP(DATE(date)) as date from product_locked where DATE(date)>=DATE(NOW());
+
+    sql_attr_multi = bigint days_off from query; \
+    select item_id,day from schedule where type='product' and day_off=1;
+}
+
+# Индекс для листингов
+index searchIndex
+{
+    # Индексируемый источник
+    source = searchSource
+    # Путь к индексу
+    path = /var/lib/manticore/data/searchIndex
+    # Тип словаря
+    dict = keywords
+    # Тип морфологии. Экспериментально.
+    morphology = stem_enru, soundex, metaphone
+    # Минимальная длина слова
+    min_word_len = 1
+    # Не удалять теги html
+    html_strip = 0
+    # Длина инфикса
+    min_infix_len = 2
+    # Индексация изначальных слов
+    index_exact_words = 1
+    # Таблицы допустимых символов, которые не буду считаться разделителями
+    charset_table = 0..9, A..Z->a..z, a..z, U+410..U+42F->U+430..U+44F, U+430..U+44F,  U+0401->U+0435, U+0451->U+0435,\
+        U+AD, U+002D,U+002D, U+2012, U+2013, U+2014, U+2015, U+2011, U+2010, -, _
+}
+
+# Источник для категорий и подкатегорий
+source categorySource : configurationSource
+{
+    # Основной запрос: выбираем категории с параметрами
+    # - id категории                        : id, uint
+    # - id категории                        : category_id, uint
+    # - родитель категории                  : category_parent_id, uint
+    # - внутренее имя категории             : category_name, string, full-text
+    # - ссылка на категорию                 : category_url, string, full-text
+    # - тип категории                       : category_type, string, full-text
+    # - название категории                  : category_title, string, full-text
+    # - описание категории                  : category_description, string, full-text
+    # - сортировка категории                : category_order, uint
+    # - статус категории                    : category_status, boolean|uint
+
+    sql_query = \
+        SELECT \
+            categories.id, \
+            categories.parent_id as category_parent_id, \
+            categories.title as category_title, \
+            categories.name as category_url, \
+            categories.order as category_order \
+        FROM \
+            categories \
+        INNER JOIN \
+            products \
+        ON \
+            products.category_id = categories.id AND products.published = 1 AND products.deleted_at is null \
+        WHERE categories.status = 1 \
+        GROUP BY products.category_id \
+
+
+    # Уточняем тип: "строка" + полнотекстовый поиск
+    sql_field_string = category_title
+
+    # Уточняем тип: "строка"
+    sql_attr_string = category_url
+
+    # Уточняем тип: "целое беззнаковое"
+    sql_attr_uint = category_parent_id
+    sql_attr_uint = category_order
+}
+
+# Индекс для категорий и подкатегорий
+index categoryIndex
+{
+    # Индексируемый источник
+    source = categorySource
+    # Путь к индексу
+    path = /var/lib/manticore/data/categoryIndex
+    # Тип словаря
+    dict = keywords
+    # Тип морфологии. Экспериментально.
+    morphology = stem_enru, soundex, metaphone
+    # Минимальная длина слова
+    min_word_len = 1
+    # Не удалять теги html
+    html_strip = 0
+    # Длина инфикса
+    min_infix_len = 2
+    # Индексация изначальных слов
+    index_exact_words = 1
+    # Таблицы допустимых символов, которые не буду считаться разделителями
+    charset_table = 0..9, A..Z->a..z, a..z, U+410..U+42F->U+430..U+44F, U+430..U+44F,  U+0401->U+0435, U+0451->U+0435,\
+        U+AD, U+002D,U+002D, U+2012, U+2013, U+2014, U+2015, U+2011, U+2010, -, _
+}
+
+# Источник для исполнителей
+source profileSource : configurationSource
+{
+    # Основной запрос: выбираем категории с параметрами
+    # - id профиля                          : id, uint
+    # - id профиля                          : profile_id, uint
+    # - id пользователя                     : profile_user_id, uint
+    # - id категории                        : profile_category_id, uint
+    # - имя исполнителя                     : profile_name, string, full-text
+    # - фамилия исполнителя                 : profile_surname, string, full-text
+    # - никнейм исполнителя                 : profile_nickname, string, full-text
+    # - статус исполнителя                  : profile_status, boolean|uint
+    # - url пользователя                    : profile_url, string, full-text
+
+    sql_query = \
+        SELECT \
+            profiles.id, \
+            profiles.name as profile_name, \
+            profiles.surname as profile_surname, \
+            profiles.nickname as profile_nickname, \
+            profiles.url as profile_url \
+        FROM \
+            profiles \
+        INNER JOIN \
+            categories \
+        ON \
+            profiles.category_id = categories.id AND categories.type like 'service' AND categories.status = 1 AND categories.deleted_at is null \
+        WHERE profiles.status = 1 AND profiles.published = 1 \
+
+    # Уточняем тип: "строка" + полнотекстовый поиск
+    sql_field_string = profile_nickname
+
+    # Уточняем тип: "строка"
+    sql_attr_string = profile_name
+    sql_attr_string = profile_surname
+    sql_attr_string = profile_url
+}
+
+# Индекс для исполнителей
+index profileIndex
+{
+    # Индексируемый источник
+    source = profileSource
+    # Путь к индексу
+    path = /var/lib/manticore/data/profileIndex
+    # Тип словаря
+    dict = keywords
+    # Тип морфологии. Экспериментально.
+    morphology = stem_enru, soundex, metaphone
+    # Минимальная длина слова
+    min_word_len = 1
+    # Не удалять теги html
+    html_strip = 0
+    # Длина инфикса
+    min_infix_len = 2
+    # Индексация изначальных слов
+    index_exact_words = 1
+    # Таблицы допустимых символов, которые не буду считаться разделителями
+    charset_table = 0..9, A..Z->a..z, a..z, U+410..U+42F->U+430..U+44F, U+430..U+44F,  U+0401->U+0435, U+0451->U+0435,\
+        U+AD, U+002D,U+002D, U+2012, U+2013, U+2014, U+2015, U+2011, U+2010, -, _
+}
+
+# Настройки поискового демона
+searchd
+{
+    # Адрес + порт UNIX-сокета, к которому мы можем подключаться через mysql
+    listen = 9306:mysql41
+    # Для подключений по HTTP
+    listen = 9308:http
+    # Адрес + порт UNIX-сокета, на котором будет запущен демон
+    listen = 192.168.224.2:9312
+    # Файл логов
+    log = /var/log/manticore/searchd.log
+    # Файл логов запросов
+    query_log = /var/log/manticore/query.log
+    # Тайм-аут чтения в секундах
+    read_timeout = 5
+    # Максимальное количество подпроцессов демона
+    max_children = 30
+    # Путь к PID-файлу
+    pid_file = /var/run/manticore/searchd.pid
+    #workers = thread
+    workers = thread_pool
+    seamless_rotate = 1
+    preopen_indexes = 1
+    unlink_old = 1
+    max_packet_size = 128M
+    # Используем 4 ядра процессора для поиска
+    dist_threads = 4
+    # Файл бинарного лога
+    binlog_path =
+    # Серверная версия mySQL
+    mysql_version_string = 8.0.18
+}
