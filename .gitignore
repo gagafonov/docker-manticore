@@ -2,3 +2,5 @@
 .DS_Store
 .env
 .env.backup
+sphinx.conf
+sphinx.conf.backup
