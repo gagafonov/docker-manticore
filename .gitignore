@@ -3,4 +3,5 @@
 .env
 .env.backup
 sphinx.conf
+manticore.conf
 sphinx.conf.backup
