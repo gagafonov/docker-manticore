@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
 
 cd "$(dirname "$0")"
-rm -f data/*
-docker-compose exec manticore gosu manticore indexer --all --rotate
+docker-compose exec -T manticore gosu manticore indexer --all --rotate
