@@ -24,8 +24,3 @@ services:
       memlock:
         soft: -1
         hard: -1
-    networks:
-      - app-network
-networks:
-  app-network:
-    driver: bridge
