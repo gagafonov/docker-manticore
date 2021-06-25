@@ -1,11 +1,12 @@
 # docker-manticore HappyDay by Regul
-- докер-контейнер мантикоры 
-- тестировался только на MacOS 11.2.3 и на Ubuntu 18.04.3 LTS (Bionic Beaver)
+- докер-контейнер мантикоры для боевых и девелоперских серверов, котрые смотрят в интернет 
+- тестировался только на Ubuntu 18.04.3 LTS (Bionic Beaver)
 - под windows работать не будет 
 
 ## сборка
 1. `cp .env.example .env`
 2. в папке проекта делаем `sudo php artisan manticore:config:create config/manticore/manticore.conf.example {PATH_TO_DOCKER_DIR}etc/sphinx.conf --index_prefix=/var/lib/manticore/data --log_path=/var/log/manticore/searchd.log --query_log_path=/var/log/manticore/query.log --pid_path=/var/run/manticore/searchd.pid --binlog_path=`
+2.1. в итоговом `{PATH_TO_DOCKER_DIR}etc/sphinx.conf` меняем ip хоста на internet ip, а юзера на того, у которого есть удаленный доступ и права на базы
 3. возможно настраиваем внешние порты в `.env`
 4. `sudo docker-compose up -d`
 5. `sudo docker-compose exec manticore gosu manticore indexer --all --rotate`
