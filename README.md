@@ -16,7 +16,7 @@
 9. добавляем в кронтаб рута реиндекс: 
 ```
 sudo crontab -e
-* * * * * {PATH_TO_DOCKER_DIR}/bash-reindex
+* * * * * {PATH_TO_DOCKER_DIR}/bash-reindex >> /dev/null 2>&1
 ```
 
 ## запуск
