@@ -5,7 +5,7 @@
 
 ## сборка
 1. `cp .env.example .env`
-2. в папке проекта делаем `sudo php artisan manticore:config:create config/manticore/manticore.conf.example {PATH_TO_DOCKER_DIR}etc/sphinx.conf --index_prefix=/var/lib/manticore/data --log_path=/var/log/manticore/searchd.log --query_log_path=/var/log/manticore/query.log --pid_path=/var/run/manticore/searchd.pid --binlog_path=`
+2. в папке проекта делаем `sudo php artisan manticore:config:create config/manticore/manticore.conf.example {PATH_TO_DOCKER_DIR}etc/sphinx.conf --index_prefix=/var/lib/manticore/data --log_path=/var/log/manticore/searchd.log --query_log_path=/var/log/manticore/query.log --pid_path=/var/run/manticore/searchd.pid --binlog_path=` \
 2.1. в итоговом `{PATH_TO_DOCKER_DIR}etc/sphinx.conf` меняем ip хоста на internet ip, а юзера на того, у которого есть удаленный доступ и права на базы
 3. возможно настраиваем внешние порты в `.env`
 4. `sudo docker-compose up -d`
